@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hangman</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Figtree:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #2B1330;
+    --pop: #FFE08A;
+    --display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+    --body: "Figtree", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    min-height: 100vh;
+    background: linear-gradient(180deg, #FFA34D 0%, #FF7A3D 55%, #F4562F 100%);
+    background-attachment: fixed;
+    color: var(--ink);
+    font-family: var(--body);
+    display: grid;
+    place-items: center;
+    padding: 24px 16px;
+  }
+  main {
+    position: relative;
+    width: 100%;
+    max-width: 640px;
+    text-align: center;
+  }
+  .title {
+    margin: 0 0 12px;
+    font-family: var(--display);
+    font-size: clamp(2.2rem, 6vw, 3.5rem);
+    line-height: 1;
+    letter-spacing: -0.04em;
+  }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+  /* earth */
+  #globe { display: block; margin: 0 auto 28px; width: min(100%, 300px); overflow: visible; }
+  .ocean { fill: #3F7FD0; }
+  .grid { fill: none; stroke: #fff; stroke-opacity: .25; stroke-width: 1.2; }
+  .land { fill: #6CC36F; }
+  .route { fill: none; stroke: #fff; stroke-opacity: .7; stroke-width: 3; stroke-dasharray: 2 8; stroke-linecap: round; }
+  .trail { fill: none; stroke: #fff; stroke-width: 3.5; stroke-linecap: round; }
+  .plane .body { fill: var(--pop); stroke: var(--ink); stroke-width: 2.5; stroke-linejoin: round; }
+  .plane .pal { fill: none; stroke: var(--ink); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* phrase */
+  .phrase { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 22px; margin: 0 0 10px; }
+  .word { display: flex; gap: 6px; }
+  .tile {
+    width: clamp(26px, 7.5vw, 38px); height: clamp(38px, 10vw, 50px);
+    display: grid; place-items: center;
+    font-family: var(--display); font-weight: 800; font-size: clamp(1.4rem, 5vw, 1.9rem);
+    border-bottom: 3px solid var(--ink);
+  }
+  .status { min-height: 1.6em; font-weight: 700; margin: 6px 0 16px; }
+  .lives { font-weight: 500; opacity: .75; }
+
+  /* keyboard */
+  .keys { display: grid; gap: 8px; justify-items: center; }
+  .row { display: flex; gap: 6px; justify-content: center; }
+  .key {
+    font-family: var(--display); font-weight: 800; font-size: 1.05rem;
+    width: clamp(28px, 8.4vw, 46px); height: clamp(40px, 11vw, 50px);
+    border: 0; border-radius: 12px;
+    background: rgba(255,255,255,.35); color: var(--ink); cursor: pointer;
+    transition: background .15s, transform .08s;
+  }
+  .key:hover:not(:disabled) { background: rgba(255,255,255,.65); }
+  .key:active:not(:disabled) { transform: scale(.94); }
+  .key:disabled { cursor: default; }
+  .key.hit { background: #fff; }
+  .key.miss { background: transparent; opacity: .45; text-decoration: line-through; }
+  :focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+
+  .again {
+    margin-top: 22px; font-family: var(--display); font-weight: 800; font-size: 1.1rem;
+    padding: 12px 26px; border: 0; border-radius: 999px;
+    background: #fff; color: var(--ink); cursor: pointer;
+  }
+  .again:active { transform: scale(.96); }
+  .again[hidden] { display: none; }
+
+  .pdf-bubble {
+    position: absolute;
+    left: 58%;
+    top: 24%;
+    z-index: 10;
+    padding: 10px 16px;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.95);
+    border: 3px solid var(--ink);
+    box-shadow: 0 6px 0 rgba(43,19,48,0.5);
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 0.9rem;
+    line-height: 1.1;
+    text-decoration: none;
+    color: var(--ink);
+    transform: translate(-50%, -50%);
+  }
+  .pdf-bubble::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -12px;
+    width: 18px;
+    height: 18px;
+    background: rgba(255,255,255,0.95);
+    border-right: 3px solid var(--ink);
+    border-bottom: 3px solid var(--ink);
+    transform: translateX(-50%) rotate(45deg);
+  }
+  .pdf-bubble[hidden] { display: none; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <h1 class="title">Help Emma and Tyson get to England!</h1>
+  <h1 class="sr">Hangman</h1>
+
+  <svg viewBox="85 5 230 230" role="img" aria-label="A plane flying from Australia to England around the earth" id="globe">
+    <defs><clipPath id="clip"><circle cx="200" cy="120" r="105"/></clipPath></defs>
+    <circle class="ocean" cx="200" cy="120" r="105"/>
+    <g clip-path="url(#clip)">
+      <ellipse class="grid" cx="200" cy="120" rx="55" ry="105"/>
+      <ellipse class="grid" cx="200" cy="120" rx="105" ry="38"/>
+      <path class="grid" d="M95 120 H305 M200 15 V225 M112 60 H288 M112 180 H288"/>
+      <path class="land" d="M226 158 L238 150 L252 152 L260 142 L268 148 L278 160 L276 176 L264 190 L246 196 L230 190 L224 174 Z"/>
+      <path class="land" d="M148 40 L156 44 L154 54 L162 62 L158 74 L144 80 L136 74 L140 64 L134 56 L140 48 Z"/>
+      <ellipse class="land" cx="125" cy="62" rx="5" ry="8"/>
+    </g>
+    <path class="route" id="route" d="M244 160 C236 112, 206 66, 156 64"/>
+    <path class="trail" id="trail" d="M244 160 C236 112, 206 66, 156 64"/>
+    <g class="plane" id="plane">
+      <g id="planeArt">
+        <path class="body" d="M-22 2 Q-22 -1 -16 -1 H14 L24 -7 V4 L14 8 H-16 Q-22 8 -22 2 Z"/>
+        <path class="pal" d="M-24 -6 V10 M-6 8 H8"/>
+        <!-- two stick figures, arms up -->
+        <g class="pal">
+          <circle cx="-4" cy="-12" r="3.6"/><path d="M-4 -8.4 V-1 M-9 -17 L-4 -9 L1 -17"/>
+          <circle cx="10" cy="-12" r="3.6"/><path d="M10 -8.4 V-1 M5 -17 L10 -9 L15 -17"/>
+        </g>
+      </g>
+    </g>
+  </svg>
+
+  <div class="phrase" id="phrase" aria-label="Phrase to guess"></div>
+  <div class="status" id="status" role="status" aria-live="polite"></div>
+  <div class="keys" id="keys"></div>
+  <a class="pdf-bubble" id="pdf-link" href="DON%27T%20OPEN%20ME.pdf" target="_blank" rel="noreferrer" hidden>Open PDF</a>
+  <button class="again" id="again" hidden>Play again</button>
+</main>
+
+<script>
+  const PHRASE = "KIKI CLUB LET US IN";
+  const ROWS = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
+
+  const $ = id => document.getElementById(id);
+  const phraseEl = $("phrase"), statusEl = $("status"),
+        keysEl = $("keys"), againBtn = $("again"), pdfLink = $("pdf-link");
+
+  let phrase, guessed, wrong, over;
+
+  // ---- flight ----
+  // To use your own stick-figure plane image, put its path here, e.g. "plane.png"
+  const PLANE_IMG = "";
+  if (PLANE_IMG) {
+    $("planeArt").innerHTML =
+      `<image href="${PLANE_IMG}" x="-36" y="-36" width="72" height="72"/>`;
+  }
+  const route = $("route"), trail = $("trail"), plane = $("plane");
+  const routeLen = route.getTotalLength();
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let shown = 0, raf;
+
+  function place(p) {
+    const len = p * routeLen;
+    const pt = route.getPointAtLength(len);
+    const a = route.getPointAtLength(Math.max(0, len - 1));
+    const b = route.getPointAtLength(Math.min(routeLen, len + 1));
+    let tilt = Math.atan2(-(b.y - a.y), Math.abs(b.x - a.x)) * 180 / Math.PI;
+    tilt = Math.max(-30, Math.min(40, tilt));
+    plane.setAttribute("transform", `translate(${pt.x} ${pt.y}) rotate(${tilt})`);
+    trail.style.strokeDasharray = routeLen;
+    trail.style.strokeDashoffset = routeLen - len;
+    shown = p;
+  }
+  function flyTo(target) {
+    cancelAnimationFrame(raf);
+    if (reduceMotion) return place(target);
+    const from = shown, t0 = performance.now(), dur = 700;
+    (function step(now) {
+      const t = Math.min(1, (now - t0) / dur);
+      place(from + (target - from) * (1 - Math.pow(1 - t, 3)));
+      if (t < 1) raf = requestAnimationFrame(step);
+    })(t0);
+  }
+
+  function newGame() {
+    phrase = PHRASE;
+    guessed = new Set(); wrong = 0; over = false;
+    againBtn.hidden = true;
+    pdfLink.hidden = true;
+    cancelAnimationFrame(raf); place(0);
+    buildKeys(); render();
+  }
+
+  function buildKeys() {
+    keysEl.innerHTML = "";
+    ROWS.forEach(r => {
+      const row = document.createElement("div"); row.className = "row";
+      [...r].forEach(ch => {
+        const b = document.createElement("button");
+        b.className = "key"; b.textContent = ch; b.dataset.k = ch;
+        b.setAttribute("aria-label", "Guess " + ch);
+        b.addEventListener("click", () => guess(ch));
+        row.appendChild(b);
+      });
+      keysEl.appendChild(row);
+    });
+  }
+
+  function render() {
+    phraseEl.innerHTML = "";
+    phrase.split(" ").forEach(w => {
+      const wEl = document.createElement("div"); wEl.className = "word";
+      [...w].forEach(ch => {
+        const t = document.createElement("div");
+        t.className = "tile";
+        if (guessed.has(ch)) t.textContent = ch;
+        wEl.appendChild(t);
+      });
+      phraseEl.appendChild(wEl);
+    });
+    const letters = [...phrase].filter(c => c !== " ");
+    flyTo(letters.filter(c => guessed.has(c)).length / letters.length);
+    if (!over) {
+      statusEl.innerHTML = wrong
+        ? `Pick a letter <span class="lives">· ${wrong} ${wrong === 1 ? "miss" : "misses"}</span>`
+        : "Pick a letter";
+    }
+  }
+
+  function guess(ch) {
+    const letter = ch.toUpperCase();
+    if (over || guessed.has(letter)) return;
+    guessed.add(letter);
+    const key = keysEl.querySelector(`[data-k="${letter}"]`);
+    if (key) key.disabled = true;
+    if (phrase.includes(letter)) key.classList.add("hit");
+    else { key.classList.add("miss"); wrong++; }
+    const won = [...phrase].every(c => c === " " || guessed.has(c));
+    if (won) end();
+    render();
+    if (over) statusEl.textContent = "You got it! They landed in England.";
+  }
+
+  function end() {
+    over = true;
+    keysEl.querySelectorAll(".key").forEach(k => k.disabled = true);
+    pdfLink.hidden = false;
+    againBtn.hidden = false;
+    againBtn.focus();
+  }
+
+  document.addEventListener("keydown", e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (/^[a-z]$/i.test(e.key)) guess(e.key.toUpperCase());
+  });
+  againBtn.addEventListener("click", newGame);
+  newGame();
+</script>
+</body>
+</html>
